@@ -23,6 +23,7 @@ services:
     environment:
       - PYTHONDONTWRITEBYTECODE=1
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/company_evaluation
+      - PORT=8000
     depends_on:
       postgres:
         condition: service_healthy
