@@ -209,21 +209,18 @@ export default function Dashboard() {
                 <table>
                   <thead>
                     <tr>
-                      <th>ID</th><th>Name</th><th>Email</th><th>Position</th><th>Grade</th><th>Sheet Status</th><th>Actions</th>
+                      <th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Team</th><th>Status</th>
                     </tr>
                   </thead>
                   <tbody>
                     {employees.map(e => (
-                      <tr key={e.employee_id}>
-                        <td><code className="code">{e.employee_id}</code></td>
-                        <td style={{ fontWeight: 600 }}>{e.name}</td>
+                      <tr key={e.id}>
+                        <td><code className="code">{e.id}</code></td>
+                        <td style={{ fontWeight: 600 }}>{e.full_name}</td>
                         <td style={{ color: "var(--gray-500)" }}>{e.email}</td>
-                        <td><PositionTag position={e.position} /></td>
-                        <td><strong>{e.grade}</strong></td>
-                        <td><Badge status={e.latest_sheet_status} /></td>
-                        <td>
-                          <button className="btn btn-outline btn-sm" onClick={() => viewHistory(e.employee_id)}>📜 History</button>
-                        </td>
+                        <td><span className="position-tag">{e.role}</span></td>
+                        <td>{e.team || "—"}</td>
+                        <td><Badge status={e.status} /></td>
                       </tr>
                     ))}
                   </tbody>

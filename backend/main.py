@@ -1,7 +1,10 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from datetime import datetime
+from sqlalchemy.orm import Session
+from database import get_db
+from models import User, Role, Team
 import uuid
 
 app = FastAPI(title="Evaluation Sheet API", version="1.0.0")
@@ -205,10 +208,20 @@ def dashboard_status():
     return {"total_sheets": len(SHEETS_DB), "by_status": counts}
 
 @app.get("/v1/employees")
-def list_employees():
-    result = []
-    for emp in EMPLOYEES_DB.values():
-        sheets = [s for s in SHEETS_DB.values() if s["employee_id"] == emp["employee_id"]]
-        latest = max(sheets, key=lambda x: x["created_at"]) if sheets else None
-        result.append({**emp, "latest_sheet_status": latest["status"] if latest else "none", "latest_period": latest["period"] if latest else None})
-    return {"employees": result, "total": len(result)}
+def list_employees(db: Session = Depends(get_db)):
+    rows = (
+        db.query(User, Role.name.label("role_name"), Team.name.label("team_name"))
+        .join(Role, User.role_id == Role.id)
+        .outerjoin(Team, User.team_id == Team.id)
+        .filter(User.deleted_at.is_(None))
+        .order_by(User.full_name)
+        .all()
+    )
+    return {
+        "employees": [
+            {"id": u.id, "full_name": u.full_name, "email": u.email, "role": role_name, "team": team_name, "status": u.status}
+            for u, role_name, team_name in rows
+        ],
+        "total": len(rows),
+    }
+
