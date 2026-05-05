@@ -9,7 +9,7 @@ AI-powered evaluation sheet management system — Team Channel, AI Contest 2026.
 ## Quick Start
 
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
 
 - **Frontend (HR Dashboard):** http://localhost:3000
