@@ -2,6 +2,7 @@
 module.exports = {
   output: "standalone",
   async rewrites() {
-    return [{ source: "/api/:path*", destination: "http://backend:8000/v1/:path*" }];
+    const backendUrl = process.env.BACKEND_URL || "http://backend:8000";
+    return [{ source: "/api/:path*", destination: `${backendUrl}/v1/:path*` }];
   },
 };
