@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { getUserFromToken } from "./utils/auth";
 
 const API = "/api";
 async function api(path, opts) {
@@ -47,10 +48,8 @@ export default function Dashboard() {
   }, [permissions]);
 
   useEffect(() => {
-    try {
-      const user = JSON.parse(localStorage.getItem("user") || "{}");
-      setPermissions(user.permissions || {});
-    } catch { setPermissions({}); }
+    const user = getUserFromToken();
+    setPermissions(user?.permissions || {});
   }, []);
 
   useEffect(() => {
