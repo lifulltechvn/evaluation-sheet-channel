@@ -47,3 +47,35 @@ def validate_sheet(sheet_id: str) -> dict | None:
         sheet_repository.update_status(sheet_id, "validated")
 
     return {"sheet_id": sheet_id, "status": status, "errors": errors, "warnings": warnings}
+
+
+def migrate_sheets(from_period: str, to_period: str, employee_updates: list[dict] | None = None) -> list[dict]:
+    """Migrate sheets from one period to another with optional grade updates."""
+    source_sheets = sheet_repository.get_by_period(from_period)
+    updates_map = {u["employee_id"]: u for u in (employee_updates or [])}
+    migrated = []
+
+    for src in source_sheets:
+        new_grade = updates_map.get(src["employee_id"], {}).get("new_grade", src["grade"])
+        new_scoring = get_scoring(src["position"], new_grade)
+        sheet_id = f"SHEET-{to_period}-{uuid.uuid4().hex[:6].upper()}"
+        sheet = {
+            **src,
+            "sheet_id": sheet_id,
+            "period": to_period,
+            "grade": new_grade,
+            "status": "created",
+            "scoring_criteria": new_scoring,
+            "google_sheet_url": f"https://docs.google.com/spreadsheets/d/mock-{sheet_id}",
+            "created_at": datetime.now().isoformat(),
+            "migrated_from": src["sheet_id"],
+        }
+        sheet_repository.save(sheet)
+        migrated.append({
+            "sheet_id": sheet_id,
+            "employee_id": src["employee_id"],
+            "old_grade": src["grade"],
+            "new_grade": new_grade,
+        })
+
+    return migrated

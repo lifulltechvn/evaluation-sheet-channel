@@ -3,8 +3,13 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { getUserFromToken } from "./utils/auth";
 
 const API = "/api";
-async function api(path, opts) {
-  const res = await fetch(`${API}${path}`, { headers: { "Content-Type": "application/json" }, ...opts });
+async function api(path, opts = {}) {
+  const token = localStorage.getItem("access_token");
+  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  const res = await fetch(`${API}${path}`, { ...opts, headers });
   return res.json();
 }
 
