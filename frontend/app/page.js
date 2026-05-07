@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 
 const API = "/api";
 async function api(path, opts) {
@@ -7,8 +7,8 @@ async function api(path, opts) {
   return res.json();
 }
 
-const TABS = [
-  { id: "dashboard", label: "Dashboard", icon: "📊" },
+const ALL_TABS = [
+  { id: "dashboard", label: "Dashboard", icon: "📊", requirePermission: "view_all" },
   { id: "sheets", label: "Sheets", icon: "📄" },
   { id: "employees", label: "Employees", icon: "👥" },
   { id: "history", label: "History", icon: "📜" },
@@ -30,13 +30,34 @@ function PositionTag({ position }) {
 }
 
 export default function Dashboard() {
-  const [tab, setTab] = useState("dashboard");
+  const [permissions, setPermissions] = useState({});
+  const [tab, setTab] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [sheets, setSheets] = useState([]);
   const [dashStatus, setDashStatus] = useState({});
   const [toast, setToast] = useState(null);
   const [genPeriod, setGenPeriod] = useState("2026-H1");
   const [history, setHistory] = useState(null);
+
+  const TABS = useMemo(() => {
+    return ALL_TABS.filter(t => {
+      if (!t.requirePermission) return true;
+      return permissions[t.requirePermission] === true;
+    });
+  }, [permissions]);
+
+  useEffect(() => {
+    try {
+      const user = JSON.parse(localStorage.getItem("user") || "{}");
+      setPermissions(user.permissions || {});
+    } catch { setPermissions({}); }
+  }, []);
+
+  useEffect(() => {
+    if (TABS.length > 0 && tab === null) {
+      setTab(TABS[0].id);
+    }
+  }, [TABS, tab]);
 
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
