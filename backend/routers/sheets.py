@@ -1,20 +1,17 @@
 """BFF Layer: Sheets endpoints — aggregate and transform for frontend."""
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 
+from dependencies import get_current_user
 from schemas.requests import GenerateRequest, BatchSendRequest, MigrateRequest
 from services import sheet_service
-from services.scoring_service import get_scoring
 from repositories import sheet_repository
-
-import uuid
-from datetime import datetime
 
 router = APIRouter(prefix="/v1/sheets", tags=["sheets"])
 
 
 @router.post("/generate")
-def generate_sheets(req: GenerateRequest):
+def generate_sheets(req: GenerateRequest, _user: dict = Depends(get_current_user)):
     created = []
     for emp in req.employees:
         sheet = sheet_service.create_sheet(
@@ -35,13 +32,18 @@ def generate_sheets(req: GenerateRequest):
 
 
 @router.get("")
-def list_sheets(period: str | None = None, status: str | None = None, position: str | None = None):
+def list_sheets(
+    period: str | None = None,
+    status: str | None = None,
+    position: str | None = None,
+    _user: dict = Depends(get_current_user),
+):
     results = sheet_repository.get_all(period=period, status=status, position=position)
     return {"sheets": results, "total": len(results)}
 
 
 @router.get("/{sheet_id}")
-def get_sheet(sheet_id: str):
+def get_sheet(sheet_id: str, _user: dict = Depends(get_current_user)):
     sheet = sheet_repository.get_by_id(sheet_id)
     if sheet is None:
         raise HTTPException(404, "Sheet not found")
@@ -49,7 +51,7 @@ def get_sheet(sheet_id: str):
 
 
 @router.post("/{sheet_id}/send")
-def send_sheet(sheet_id: str):
+def send_sheet(sheet_id: str, _user: dict = Depends(get_current_user)):
     sheet = sheet_repository.get_by_id(sheet_id)
     if sheet is None:
         raise HTTPException(404, "Sheet not found")
@@ -58,7 +60,7 @@ def send_sheet(sheet_id: str):
 
 
 @router.post("/batch-send")
-def batch_send(req: BatchSendRequest):
+def batch_send(req: BatchSendRequest, _user: dict = Depends(get_current_user)):
     results = []
     for sid in req.sheet_ids:
         if sheet_repository.get_by_id(sid):
@@ -70,7 +72,7 @@ def batch_send(req: BatchSendRequest):
 
 
 @router.post("/{sheet_id}/validate")
-def validate_sheet(sheet_id: str):
+def validate_sheet(sheet_id: str, _user: dict = Depends(get_current_user)):
     result = sheet_service.validate_sheet(sheet_id)
     if result is None:
         raise HTTPException(404, "Sheet not found")
@@ -78,7 +80,7 @@ def validate_sheet(sheet_id: str):
 
 
 @router.post("/batch-validate")
-def batch_validate(req: BatchSendRequest):
+def batch_validate(req: BatchSendRequest, _user: dict = Depends(get_current_user)):
     results = []
     for sid in req.sheet_ids:
         result = sheet_service.validate_sheet(sid)
@@ -90,32 +92,10 @@ def batch_validate(req: BatchSendRequest):
 
 
 @router.post("/migrate")
-def migrate_sheets(req: MigrateRequest):
-    source_sheets = sheet_repository.get_by_period(req.from_period)
-    updates_map = {u["employee_id"]: u for u in (req.employee_updates or [])}
-    migrated = []
-
-    for src in source_sheets:
-        new_grade = updates_map.get(src["employee_id"], {}).get("new_grade", src["grade"])
-        new_scoring = get_scoring(src["position"], new_grade)
-        sheet_id = f"SHEET-{req.to_period}-{uuid.uuid4().hex[:6].upper()}"
-        sheet = {
-            **src,
-            "sheet_id": sheet_id,
-            "period": req.to_period,
-            "grade": new_grade,
-            "status": "created",
-            "scoring_criteria": new_scoring,
-            "google_sheet_url": f"https://docs.google.com/spreadsheets/d/mock-{sheet_id}",
-            "created_at": datetime.now().isoformat(),
-            "migrated_from": src["sheet_id"],
-        }
-        sheet_repository.save(sheet)
-        migrated.append({
-            "sheet_id": sheet_id,
-            "employee_id": src["employee_id"],
-            "old_grade": src["grade"],
-            "new_grade": new_grade,
-        })
-
+def migrate_sheets(req: MigrateRequest, _user: dict = Depends(get_current_user)):
+    migrated = sheet_service.migrate_sheets(
+        from_period=req.from_period,
+        to_period=req.to_period,
+        employee_updates=req.employee_updates,
+    )
     return {"status": "success", "migrated": len(migrated), "sheets": migrated}
