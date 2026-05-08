@@ -24,6 +24,8 @@ services:
       - PYTHONDONTWRITEBYTECODE=1
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/company_evaluation
       - PORT=8000
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY}
+      - JWT_EXPIRE_MINUTES=120
     depends_on:
       postgres:
         condition: service_healthy
