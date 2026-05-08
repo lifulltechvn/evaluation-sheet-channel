@@ -32,6 +32,7 @@ class User(Base):
     __tablename__ = "users"
     id         = Column(String(36), primary_key=True)
     email      = Column(String(100), nullable=False, unique=True)
+    password   = Column(String(255), nullable=False)
     full_name  = Column(String(100), nullable=False)
     role_id    = Column(String(36), ForeignKey("roles.id"), nullable=False)
     team_id    = Column(String(36), ForeignKey("teams.id"), nullable=True)
