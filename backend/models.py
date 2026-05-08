@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, String, Text, Float, Date, ForeignKey, Index, CheckConstraint
+    Column, String, Text, Float, Date, Boolean, ForeignKey, Index, CheckConstraint
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase
@@ -83,6 +83,22 @@ class Evaluation(Base):
             "status IN ('Self_Evaluating','Leader_Reviewing','Manager_Reviewing','Completed')",
             name="ck_eval_status"
         ),
+    )
+
+
+class EvaluationContentRefinement(Base):
+    __tablename__ = "evaluation_content_refinements"
+    id                = Column(String(36), primary_key=True)
+    evaluation_id     = Column(String(36), ForeignKey("evaluations.id", ondelete="CASCADE"), nullable=False)
+    check_type        = Column(String(20), nullable=True)
+    original_content  = Column(Text, nullable=True)
+    suggested_content = Column(Text, nullable=True)
+    comment           = Column(String(255), nullable=True)
+    is_applied        = Column(Boolean, server_default="false", nullable=False)
+    created_at        = Column(DateTime, server_default=func.now())
+    __table_args__ = (
+        CheckConstraint("check_type IN ('SPELLING', 'TRANSLATION', 'FORMATTING')", name="ck_refinement_check_type"),
+        Index("idx_refinements_evaluation_id", "evaluation_id"),
     )
 
 
