@@ -1,14 +1,12 @@
 "use client";
 import { useState, useEffect, useCallback, useMemo } from "react";
-import { getUserFromToken } from "./utils/auth";
+import { useRouter } from "next/navigation";
+import { getUserFromToken, clearAuth } from "./utils/auth";
 
 const API = "/api";
 async function api(path, opts = {}) {
-  const token = localStorage.getItem("access_token");
-  const headers = { "Content-Type": "application/json", ...(opts.headers || {}) };
-  if (token) {
-    headers["Authorization"] = `Bearer ${token}`;
-  }
+  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  const headers = { "Content-Type": "application/json", ...(token && { Authorization: `Bearer ${token}` }), ...opts.headers };
   const res = await fetch(`${API}${path}`, { ...opts, headers });
   return res.json();
 }
@@ -36,7 +34,9 @@ function PositionTag({ position }) {
 }
 
 export default function Dashboard() {
+  const router = useRouter();
   const [permissions, setPermissions] = useState({});
+  const [currentUser, setCurrentUser] = useState(null);
   const [tab, setTab] = useState(null);
   const [employees, setEmployees] = useState([]);
   const [sheets, setSheets] = useState([]);
@@ -55,6 +55,7 @@ export default function Dashboard() {
   useEffect(() => {
     const user = getUserFromToken();
     setPermissions(user?.permissions || {});
+    setCurrentUser(user);
   }, []);
 
   useEffect(() => {
@@ -105,10 +106,24 @@ export default function Dashboard() {
     setTab("history");
   };
 
+  const loadMyHistory = useCallback(async () => {
+    const res = await api("/employees/me/history");
+    setHistory(res);
+  }, []);
+
+  useEffect(() => {
+    if (tab === "history" && !history) loadMyHistory();
+  }, [tab, history, loadMyHistory]);
+
   const migrate = async () => {
     await api("/sheets/migrate", { method: "POST", body: JSON.stringify({ from_period: "2025-H2", to_period: genPeriod }) });
     showToast("🔄 Migration complete!");
     load();
+  };
+
+  const handleLogout = () => {
+    clearAuth();
+    router.replace("/login");
   };
 
   return (
@@ -130,14 +145,19 @@ export default function Dashboard() {
             </button>
           ))}
         </nav>
-        <div className="sidebar-footer">Team Channel — AI Contest 2026</div>
+        <div className="sidebar-footer">
+          <button className="logout-btn" onClick={handleLogout}>🚪 Đăng xuất</button>
+        </div>
       </aside>
 
       {/* Main */}
       <main className="main">
         <div className="topbar">
           <div className="topbar-title">{TAB_TITLES[tab]}</div>
-          <span className="topbar-badge">🔶 Demo Mode</span>
+          <div className="topbar-right">
+            <span className="topbar-badge">🔶 Demo Mode</span>
+            {currentUser && <span className="topbar-user">👤 {currentUser.email} ({currentUser.role})</span>}
+          </div>
         </div>
 
         <div className="content">
@@ -234,7 +254,7 @@ export default function Dashboard() {
                 <table>
                   <thead>
                     <tr>
-                      <th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Team</th><th>Status</th>
+                      <th>ID</th><th>Name</th><th>Email</th><th>Role</th><th>Team</th><th>Status</th><th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -246,6 +266,7 @@ export default function Dashboard() {
                         <td><span className="position-tag">{e.role}</span></td>
                         <td>{e.team || "—"}</td>
                         <td><Badge status={e.status} /></td>
+                        <td><button className="btn btn-primary btn-sm" onClick={() => viewHistory(e.id)}>📜 History</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -269,16 +290,16 @@ export default function Dashboard() {
                 <div className="table-wrap">
                   <table>
                     <thead>
-                      <tr><th>Period</th><th>Grade</th><th>Position</th><th>Score</th><th>Sheet</th></tr>
+                      <tr><th>Period</th><th>Status</th><th>Score</th><th>Rank</th><th>Sheet</th></tr>
                     </thead>
                     <tbody>
                       {(history.history || []).map((h, i) => (
                         <tr key={i}>
-                          <td style={{ fontWeight: 600 }}>{h.period}</td>
-                          <td><strong>{h.grade}</strong></td>
-                          <td><PositionTag position={h.position} /></td>
-                          <td><span style={{ fontSize: 18, fontWeight: 700, color: "var(--primary)" }}>{h.total_score}</span></td>
-                          <td><a href={h.google_sheet_url} target="_blank" rel="noreferrer" className="link">Open Sheet ↗</a></td>
+                          <td style={{ fontWeight: 600 }}>{h.period_id}</td>
+                          <td><Badge status={h.status} /></td>
+                          <td><span style={{ fontSize: 18, fontWeight: 700, color: "var(--primary)" }}>{h.final_score ?? "—"}</span></td>
+                          <td><strong>{h.rank || "—"}</strong></td>
+                          <td><a href={h.spreadsheet_url} target="_blank" rel="noreferrer" className="link">Open Sheet ↗</a></td>
                         </tr>
                       ))}
                     </tbody>

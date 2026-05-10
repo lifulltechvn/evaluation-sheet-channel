@@ -116,6 +116,21 @@ body {
   color: rgba(255,255,255,.4);
 }
 
+.logout-btn {
+  width: 100%;
+  padding: 10px 16px;
+  background: rgba(255,255,255,.08);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background .2s;
+}
+.logout-btn:hover {
+  background: rgba(239,68,68,.7);
+}
+
 .main { margin-left: 260px; flex: 1; padding: 0; }
 
 /* Top bar */
@@ -140,6 +155,9 @@ body {
   border-radius: 20px;
   font-weight: 600;
 }
+
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.topbar-user { font-size: 13px; color: var(--gray-600); font-weight: 500; }
 
 .content { padding: 28px 32px; }
 
