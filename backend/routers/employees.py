@@ -1,13 +1,19 @@
-"""BFF Layer: Employee history endpoints."""
+"""BFF Layer: Employee endpoints."""
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from dependencies import get_current_user
+from dependencies import get_current_user, require_any_permission
 from services import employee_service
 
-router = APIRouter(prefix="/v1/employees", tags=["history"])
+router = APIRouter(prefix="/v1/employees", tags=["employees"])
+
+
+@router.get("")
+def list_employees(db: Session = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """List all employees."""
+    return employee_service.get_employees_from_db(db)
 
 
 @router.get("/me/history")

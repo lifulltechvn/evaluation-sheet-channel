@@ -42,8 +42,10 @@ export default function Dashboard() {
   const [sheets, setSheets] = useState([]);
   const [dashStatus, setDashStatus] = useState({});
   const [toast, setToast] = useState(null);
-  const [genPeriod, setGenPeriod] = useState("2026-H1");
+  const [genPeriod, setGenPeriod] = useState("");
+  const [periods, setPeriods] = useState([]);
   const [history, setHistory] = useState(null);
+  const [genProgress, setGenProgress] = useState(null); // {current, total, name}
 
   const TABS = useMemo(() => {
     return ALL_TABS.filter(t => {
@@ -67,18 +69,51 @@ export default function Dashboard() {
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const load = useCallback(async () => {
-    const [e, s, d] = await Promise.all([api("/employees"), api("/sheets"), api("/dashboard/status")]);
+    const [e, s, d, p] = await Promise.all([api("/employees"), api("/sheets"), api("/dashboard/status"), api("/periods")]);
     setEmployees(e.employees || []);
     setSheets(s.sheets || []);
     setDashStatus(d);
+    const periodList = Array.isArray(p) ? p : [];
+    setPeriods(periodList);
+    if (periodList.length > 0 && !genPeriod) setGenPeriod(periodList[0].id);
   }, []);
 
   useEffect(() => { load(); }, [load]);
 
   const generateSheets = async () => {
-    const emps = employees.map(e => ({ employee_id: e.employee_id, name: e.name, email: e.email, position: e.position, grade: e.grade }));
-    const res = await api("/sheets/generate", { method: "POST", body: JSON.stringify({ period: genPeriod, employees: emps }) });
-    showToast(`✅ Generated ${res.sheets_created} sheets`);
+    const token = localStorage.getItem("access_token");
+    setGenProgress({ current: 0, total: 0, name: "Checking..." });
+    try {
+      const backendUrl = window.location.origin.replace(":3000", ":8000");
+      const res = await fetch(`${backendUrl}/v1/sheets/generate-stream?period_id=${genPeriod}`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n\n");
+        buffer = lines.pop();
+        for (const line of lines) {
+          const data = line.replace("data: ", "");
+          if (!data) continue;
+          const evt = JSON.parse(data);
+          if (evt.type === "start") setGenProgress({ current: 0, total: evt.total, name: "Checking..." });
+          else if (evt.type === "skipped") setGenProgress({ current: evt.current, total: evt.total, name: `⏭️ ${evt.name} (exists)` });
+          else if (evt.type === "progress") setGenProgress({ current: evt.current, total: evt.total, name: `✅ ${evt.name}` });
+          else if (evt.type === "done") {
+            showToast(`✅ Generated ${evt.sheets_created} sheets` + (evt.skipped ? ` (${evt.skipped} skipped)` : ""));
+          }
+        }
+      }
+    } catch (e) {
+      showToast("❌ Generation failed");
+    }
+    setGenProgress(null);
     load();
   };
 
@@ -188,12 +223,25 @@ export default function Dashboard() {
                 <div className="card-body">
                   <div className="actions-bar">
                     <select className="select" value={genPeriod} onChange={e => setGenPeriod(e.target.value)}>
-                      <option>2026-H1</option><option>2026-H2</option><option>2025-H2</option>
+                      {periods.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
                     </select>
-                    <button className="btn btn-primary" onClick={generateSheets}>📄 Generate All Sheets</button>
+                    <button className="btn btn-primary" onClick={generateSheets} disabled={!!genProgress}>
+                      {genProgress ? "⏳ Generating..." : "📄 Generate All Sheets"}
+                    </button>
                     <button className="btn btn-success" onClick={sendResults}>✉️ Send Results Email</button>
                     <button className="btn btn-warning" onClick={migrate}>🔄 Migrate from 2025-H2</button>
                   </div>
+                  {genProgress && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 4 }}>
+                        <span>{genProgress.name}</span>
+                        <span>{genProgress.current}/{genProgress.total}</span>
+                      </div>
+                      <div style={{ background: "var(--gray-100)", borderRadius: 6, height: 8, overflow: "hidden" }}>
+                        <div style={{ width: `${genProgress.total ? (genProgress.current / genProgress.total) * 100 : 0}%`, height: "100%", background: "var(--primary)", borderRadius: 6, transition: "width 0.2s" }} />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </>
