@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import get_current_user, require_permissions, require_any_permission
-from models import User, Template, EvaluationPeriod, Evaluation
+from models import User, Template, EvaluationPeriod, Evaluation, Team
 from schemas.requests import BatchSendRequest, MigrateRequest
 from services import sheet_service
-from services.google_drive_service import copy_template_to_folder, list_files_in_folder
+from services.google_drive_service import copy_template_to_folder, list_files_in_folder, get_or_create_folder
 from repositories import sheet_repository
 
 router = APIRouter(prefix="/v1/sheets", tags=["sheets"])
@@ -37,6 +37,22 @@ def generate_sheets(period_id: str, db: Session = Depends(get_db), _user: dict =
 
     # Preload templates
     templates = {t.id: t for t in db.query(Template).all()}
+    teams = {t.id: t for t in db.query(Team).all()}
+    folder_cache = {}
+
+    def get_team_folder(team_id: str) -> str:
+        if team_id in folder_cache:
+            return folder_cache[team_id]
+        team = teams.get(team_id)
+        if not team:
+            return period.folder_id
+        if team.parent_id:
+            parent_folder = get_team_folder(team.parent_id)
+            folder_id = get_or_create_folder(parent_folder, team.name)
+        else:
+            folder_id = get_or_create_folder(period.folder_id, team.name)
+        folder_cache[team_id] = folder_id
+        return folder_id
 
     created = []
     for user in users:
@@ -54,10 +70,11 @@ def generate_sheets(period_id: str, db: Session = Depends(get_db), _user: dict =
             continue
 
         file_name = f"【】{user.full_name} Evaluation Sheet {period.name}"
+        target_folder = get_team_folder(user.team_id) if user.team_id else period.folder_id
 
         result = copy_template_to_folder(
             template_file_id=template.google_file_id,
-            folder_id=period.folder_id,
+            folder_id=target_folder,
             file_name=file_name,
         )
 
@@ -94,11 +111,29 @@ def generate_sheets_stream(period_id: str, db: Session = Depends(get_db), _user:
         raise HTTPException(400, "No employees with template assigned")
 
     templates = {t.id: t for t in db.query(Template).all()}
+    teams = {t.id: t for t in db.query(Team).all()}
     total = len(users)
 
     def event_stream():
-        # Get existing files in the folder to check duplicates on Drive
-        existing_files = list_files_in_folder(period.folder_id)
+        # Cache for resolved folder IDs: team_id -> folder_id
+        folder_cache = {}
+
+        def get_team_folder(team_id: str) -> str:
+            """Resolve folder for a team: Period / Unit / Group"""
+            if team_id in folder_cache:
+                return folder_cache[team_id]
+            team = teams.get(team_id)
+            if not team:
+                return period.folder_id
+            if team.parent_id:
+                # GROUP → create inside parent UNIT folder
+                parent_folder = get_team_folder(team.parent_id)
+                folder_id = get_or_create_folder(parent_folder, team.name)
+            else:
+                # UNIT → create inside period folder
+                folder_id = get_or_create_folder(period.folder_id, team.name)
+            folder_cache[team_id] = folder_id
+            return folder_id
 
         yield f"data: {json.dumps({'type': 'start', 'total': total})}\n\n"
         created = 0
@@ -121,29 +156,13 @@ def generate_sheets_stream(period_id: str, db: Session = Depends(get_db), _user:
                 yield f"data: {json.dumps({'type': 'skipped', 'current': i, 'total': total, 'name': user.full_name, 'reason': 'db_exists'})}\n\n"
                 continue
 
-            # Check Drive
-            if file_name in existing_files:
-                # File exists on Drive but not in DB — record it
-                spreadsheet_id = existing_files[file_name]
-                evaluation = Evaluation(
-                    id=f"EVAL_{user.id}_{period_id}",
-                    employee_id=user.id,
-                    template_id=user.template_id,
-                    period_id=period_id,
-                    spreadsheet_id=spreadsheet_id,
-                    spreadsheet_url=f"https://docs.google.com/spreadsheets/d/{spreadsheet_id}",
-                    status="Self_Evaluating",
-                    current_handler_id=user.id,
-                )
-                db.add(evaluation)
-                skipped += 1
-                yield f"data: {json.dumps({'type': 'skipped', 'current': i, 'total': total, 'name': user.full_name, 'reason': 'drive_exists'})}\n\n"
-                continue
+            # Resolve target folder based on user's team
+            target_folder = get_team_folder(user.team_id) if user.team_id else period.folder_id
 
-            # Copy template
+            # Copy template to team folder
             result = copy_template_to_folder(
                 template_file_id=template.google_file_id,
-                folder_id=period.folder_id,
+                folder_id=target_folder,
                 file_name=file_name,
             )
             evaluation = Evaluation(

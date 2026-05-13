@@ -253,8 +253,8 @@ def upgrade():
 
     op.execute("""
         INSERT INTO evaluation_periods (id, name, start_date, end_date, folder_id, status) VALUES
-        ('1', 'PERIOD_2026_Q1', '2026-04-01', '2026-04-30', '1EKSlX08sk_prgOFT2SSthlCWWUhFs3tH', 'active'),
-        ('2', 'PERIOD_2026_Q2', '2026-07-01', '2026-07-31', '1tmaw3ve7g0SSdbdMDzP56XhFiCCBhmqF', 'active')
+        ('1', 'FY2026', '2026-04-01', '2027-03-31', '1EKSlX08sk_prgOFT2SSthlCWWUhFs3tH', 'active'),
+        ('2', 'FY2027', '2027-04-01', '2028-03-31', '1tmaw3ve7g0SSdbdMDzP56XhFiCCBhmqF', 'active')
     """)
 
     op.execute("""
