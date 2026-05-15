@@ -36,9 +36,11 @@ class User(Base):
     full_name  = Column(String(100), nullable=False)
     role_id    = Column(String(36), ForeignKey("roles.id"), nullable=False)
     team_id    = Column(String(36), ForeignKey("teams.id"), nullable=True)
-    manager_id = Column(String(36), ForeignKey("users.id"), nullable=True)
-    status     = Column(String(10), server_default="active")
-    deleted_at = Column(DateTime, nullable=True)
+    manager_id    = Column(String(36), ForeignKey("users.id"), nullable=True)
+    template_id   = Column(String(36), ForeignKey("templates.id"), nullable=True)
+    current_rank  = Column(String(10), nullable=True)
+    status        = Column(String(10), server_default="active")
+    deleted_at    = Column(DateTime, nullable=True)
     __table_args__ = (CheckConstraint("status IN ('active','inactive')", name="ck_user_status"),)
 
 
