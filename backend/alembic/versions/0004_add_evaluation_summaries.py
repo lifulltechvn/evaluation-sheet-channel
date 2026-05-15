@@ -6,7 +6,6 @@ Create Date: 2026-05-11
 """
 from alembic import op
 import sqlalchemy as sa
-from sqlalchemy.dialects.postgresql import UUID
 
 revision = "0004"
 down_revision = "0003"
@@ -17,10 +16,10 @@ depends_on = None
 def upgrade():
     op.execute("""
         CREATE TABLE evaluation_summaries (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            evaluation_id UUID NOT NULL UNIQUE REFERENCES evaluations(id) ON DELETE CASCADE,
-            employee_id UUID NOT NULL REFERENCES users(id),
-            period_id UUID NOT NULL REFERENCES evaluation_periods(id),
+            id VARCHAR(36) PRIMARY KEY DEFAULT gen_random_uuid()::text,
+            evaluation_id VARCHAR(36) NOT NULL UNIQUE REFERENCES evaluations(id) ON DELETE CASCADE,
+            employee_id VARCHAR(36) NOT NULL REFERENCES users(id),
+            period_id VARCHAR(36) NOT NULL REFERENCES evaluation_periods(id),
             skills_score JSONB NOT NULL,
             total_average FLOAT,
             created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
