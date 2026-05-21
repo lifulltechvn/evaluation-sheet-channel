@@ -13,18 +13,27 @@ async function api(path, opts = {}) {
 
 const ALL_TABS = [
   { id: "dashboard", label: "Dashboard", icon: "📊", requirePermission: "view_all" },
-  { id: "sheets", label: "Sheets", icon: "📄" },
-  { id: "employees", label: "Employees", icon: "👥" },
+  { id: "sheets", label: "Sheets", icon: "📄", requirePermission: "view_all" },
+  { id: "self-assessment", label: "Self Assessment", icon: "✍️" },
+  { id: "employees", label: "Employees", icon: "👥", requirePermission: "view_all" },
   { id: "history", label: "History", icon: "📜" },
 ];
 
-const TAB_TITLES = { dashboard: "Dashboard Overview", sheets: "Evaluation Sheets", employees: "Employee Directory", history: "Evaluation History" };
+const TAB_TITLES = { dashboard: "Dashboard Overview", sheets: "Evaluation Sheets", "self-assessment": "Self Assessment", employees: "Employee Directory", history: "Evaluation History" };
+
+const STATUS_LABELS = {
+  Self_Evaluating: "Employee self-assessment",
+  Leader_Reviewing: "Leader Manager Approved",
+  Manager_Reviewing: "Unit Manager Confirmation",
+  Completed: "Division Manager Approved",
+};
 
 function Badge({ status }) {
+  const label = STATUS_LABELS[status] || status;
   return (
     <span className={`badge badge-${status}`}>
       <span className={`badge-dot badge-dot-${status}`} />
-      {status}
+      {label}
     </span>
   );
 }
@@ -46,6 +55,11 @@ export default function Dashboard() {
   const [periods, setPeriods] = useState([]);
   const [history, setHistory] = useState(null);
   const [genProgress, setGenProgress] = useState(null); // {current, total, name}
+  const [mySheets, setMySheets] = useState([]);
+  const [myPeriodName, setMyPeriodName] = useState(null);
+  const [sheetSearch, setSheetSearch] = useState("");
+  const [sheetStatusFilter, setSheetStatusFilter] = useState("");
+  const [sheetTeamFilter, setSheetTeamFilter] = useState("");
 
   const TABS = useMemo(() => {
     return ALL_TABS.filter(t => {
@@ -69,16 +83,34 @@ export default function Dashboard() {
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
   const load = useCallback(async () => {
-    const [e, s, d, p] = await Promise.all([api("/employees"), api("/sheets"), api("/dashboard/status"), api("/periods")]);
+    const [e, s, p] = await Promise.all([api("/employees"), api("/sheets"), api("/periods")]);
     setEmployees(e.employees || []);
     setSheets(s.sheets || []);
-    setDashStatus(d);
     const periodList = Array.isArray(p) ? p : [];
     setPeriods(periodList);
     if (periodList.length > 0 && !genPeriod) setGenPeriod(periodList[0].id);
   }, []);
 
+  const loadDashboard = useCallback(async (periodId) => {
+    const d = await api(`/dashboard/status${periodId ? `?period_id=${periodId}` : ""}`);
+    setDashStatus(d);
+  }, []);
+
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (genPeriod) loadDashboard(genPeriod);
+  }, [genPeriod, loadDashboard]);
+
+  const loadMySheets = useCallback(async () => {
+    const res = await api("/sheets/me");
+    setMySheets(res.sheets || []);
+    setMyPeriodName(res.period_name || null);
+  }, []);
+
+  useEffect(() => {
+    if (tab === "self-assessment") loadMySheets();
+  }, [tab, loadMySheets]);
 
   const generateSheets = async () => {
     const token = localStorage.getItem("access_token");
@@ -135,9 +167,12 @@ export default function Dashboard() {
     showToast("✉️ Result emails sent (mock)!");
   };
 
+  const [historySource, setHistorySource] = useState(null); // "menu" or "employee"
+
   const viewHistory = async (empId) => {
     const res = await api(`/employees/${empId}/history`);
     setHistory(res);
+    setHistorySource("employee");
     setTab("history");
   };
 
@@ -147,8 +182,13 @@ export default function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (tab === "history" && !history) loadMyHistory();
-  }, [tab, history, loadMyHistory]);
+    if (tab === "history" && historySource !== "employee") {
+      loadMyHistory();
+    }
+    if (tab !== "history") {
+      setHistorySource(null);
+    }
+  }, [tab, historySource, loadMyHistory]);
 
   const migrate = async () => {
     await api("/sheets/migrate", { method: "POST", body: JSON.stringify({ from_period: "2025-H2", to_period: genPeriod }) });
@@ -254,34 +294,104 @@ export default function Dashboard() {
                 <div className="card-title">Evaluation Sheets</div>
                 <span style={{ fontSize: 13, color: "var(--gray-400)" }}>{sheets.length} total</span>
               </div>
-              {sheets.length === 0 ? (
+              <div className="card-body" style={{ paddingBottom: 0 }}>
+                <div className="actions-bar" style={{ marginBottom: 12 }}>
+                  <div className="search-wrapper">
+                    <span className="search-icon">🔍</span>
+                    <input
+                      type="text"
+                      className="search-input"
+                      placeholder="Search by name..."
+                      value={sheetSearch}
+                      onChange={e => setSheetSearch(e.target.value)}
+                    />
+                  </div>
+                  <select className="select" value={sheetStatusFilter} onChange={e => setSheetStatusFilter(e.target.value)}>
+                    <option value="">All Status</option>
+                    {Object.entries(STATUS_LABELS).map(([key, label]) => (
+                      <option key={key} value={key}>{label}</option>
+                    ))}
+                  </select>
+                  <select className="select" value={sheetTeamFilter} onChange={e => setSheetTeamFilter(e.target.value)}>
+                    <option value="">All Teams</option>
+                    {[...new Set(sheets.map(s => s.team).filter(t => t && t !== "—"))].sort().map(t => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {(() => {
+                const filtered = sheets.filter(s => {
+                  if (sheetSearch && !s.employee_name.toLowerCase().includes(sheetSearch.toLowerCase())) return false;
+                  if (sheetStatusFilter && s.status !== sheetStatusFilter) return false;
+                  if (sheetTeamFilter && s.team !== sheetTeamFilter) return false;
+                  return true;
+                });
+                return filtered.length === 0 ? (
+                  <div className="empty">
+                    <div className="empty-icon">📄</div>
+                    <div className="empty-text">No sheets found.</div>
+                  </div>
+                ) : (
+                  <div className="table-wrap">
+                    <table>
+                      <thead>
+                        <tr>
+                          <th>Sheet ID</th><th>Employee</th><th>Team</th><th>Position</th><th>Grade</th><th>Period</th><th>Status</th><th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {filtered.map(s => (
+                          <tr key={s.sheet_id}>
+                            <td><code className="code">{s.sheet_id}</code></td>
+                            <td style={{ fontWeight: 600 }}>{s.employee_name}</td>
+                            <td>{s.team}</td>
+                            <td><PositionTag position={s.position} /></td>
+                            <td><strong>{s.grade}</strong></td>
+                            <td>{s.period}</td>
+                            <td><Badge status={s.status} /></td>
+                            <td>
+                              <div className="actions-bar">
+                                <button className="btn btn-primary btn-sm" onClick={() => sendSheet(s.sheet_id)}>✉️ Send</button>
+                                <button className="btn btn-success btn-sm" onClick={() => validateSheet(s.sheet_id)}>✓ Validate</button>
+                              </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {/* Self Assessment */}
+          {tab === "self-assessment" && (
+            <div className="card">
+              <div className="card-header">
+                <div className="card-title">My Evaluation Sheets {myPeriodName ? `— ${myPeriodName}` : ""}</div>
+              </div>
+              {mySheets.length === 0 ? (
                 <div className="empty">
-                  <div className="empty-icon">📄</div>
-                  <div className="empty-text">No sheets yet. Go to Dashboard → Generate All Sheets.</div>
+                  <div className="empty-icon">✍️</div>
+                  <div className="empty-text">No evaluation sheets assigned to you yet.</div>
                 </div>
               ) : (
                 <div className="table-wrap">
                   <table>
                     <thead>
                       <tr>
-                        <th>Sheet ID</th><th>Employee</th><th>Position</th><th>Grade</th><th>Period</th><th>Status</th><th>Actions</th>
+                        <th>Status</th><th>Score</th><th>Rank</th><th>Sheet</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {sheets.map(s => (
+                      {mySheets.map(s => (
                         <tr key={s.sheet_id}>
-                          <td><code className="code">{s.sheet_id}</code></td>
-                          <td style={{ fontWeight: 600 }}>{s.employee_name}</td>
-                          <td><PositionTag position={s.position} /></td>
-                          <td><strong>{s.grade}</strong></td>
-                          <td>{s.period}</td>
                           <td><Badge status={s.status} /></td>
-                          <td>
-                            <div className="actions-bar">
-                              <button className="btn btn-primary btn-sm" onClick={() => sendSheet(s.sheet_id)}>✉️ Send</button>
-                              <button className="btn btn-success btn-sm" onClick={() => validateSheet(s.sheet_id)}>✓ Validate</button>
-                            </div>
-                          </td>
+                          <td><span style={{ fontSize: 18, fontWeight: 700, color: "var(--primary)" }}>{s.final_score ?? "—"}</span></td>
+                          <td><strong>{s.rank || "—"}</strong></td>
+                          <td><a href={s.spreadsheet_url} target="_blank" rel="noreferrer" className="link">Open Sheet ↗</a></td>
                         </tr>
                       ))}
                     </tbody>
@@ -327,7 +437,7 @@ export default function Dashboard() {
           {tab === "history" && (
             <div className="card">
               <div className="card-header">
-                <div className="card-title">Evaluation History {history ? `— ${history.employee_id}` : ""}</div>
+                <div className="card-title">Evaluation History {history ? `— ${history.employee_name || history.employee_id}` : ""}</div>
               </div>
               {!history || history.history?.length === 0 ? (
                 <div className="empty">
@@ -335,24 +445,24 @@ export default function Dashboard() {
                   <div className="empty-text">No history available. Select an employee from the Employees tab.</div>
                 </div>
               ) : (
-                <div className="table-wrap">
-                  <table>
-                    <thead>
-                      <tr><th>Period</th><th>Status</th><th>Score</th><th>Rank</th><th>Sheet</th></tr>
-                    </thead>
-                    <tbody>
+                      <div className="table-wrap">
+                        <table>
+                          <thead>
+                            <tr><th>Year</th><th>Status</th><th>Score</th><th>Rank</th><th>Sheet</th></tr>
+                          </thead>
+                          <tbody>
                       {(history.history || []).map((h, i) => (
-                        <tr key={i}>
-                          <td style={{ fontWeight: 600 }}>{h.period_id}</td>
-                          <td><Badge status={h.status} /></td>
-                          <td><span style={{ fontSize: 18, fontWeight: 700, color: "var(--primary)" }}>{h.final_score ?? "—"}</span></td>
-                          <td><strong>{h.rank || "—"}</strong></td>
-                          <td><a href={h.spreadsheet_url} target="_blank" rel="noreferrer" className="link">Open Sheet ↗</a></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                              <tr key={i}>
+                                <td style={{ fontWeight: 600 }}>{h.period_name || h.period_id}</td>
+                                <td><Badge status={h.status} /></td>
+                                <td><span style={{ fontSize: 18, fontWeight: 700, color: "var(--primary)" }}>{h.final_score ?? "—"}</span></td>
+                                <td><strong>{h.rank || "—"}</strong></td>
+                                <td><a href={h.spreadsheet_url} target="_blank" rel="noreferrer" className="link">Open Sheet ↗</a></td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
               )}
             </div>
           )}

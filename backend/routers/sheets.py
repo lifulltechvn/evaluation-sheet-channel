@@ -12,6 +12,7 @@ from schemas.requests import BatchSendRequest, MigrateRequest
 from services import sheet_service
 from services.google_drive_service import copy_template_to_folder, list_files_in_folder, get_or_create_folder
 from repositories import sheet_repository
+from datetime import date
 
 router = APIRouter(prefix="/v1/sheets", tags=["sheets"])
 
@@ -184,6 +185,41 @@ def generate_sheets_stream(period_id: str, db: Session = Depends(get_db), _user:
     return StreamingResponse(event_stream(), media_type="text/event-stream")
 
 
+@router.get("/me")
+def list_my_sheets(db: Session = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Get evaluation sheets assigned to the currently logged-in user for the current active period."""
+    active_period = db.query(EvaluationPeriod).filter(
+        EvaluationPeriod.status == "active",
+        EvaluationPeriod.start_date <= date.today(),
+        EvaluationPeriod.end_date >= date.today(),
+    ).first()
+    if not active_period:
+        return {"sheets": [], "total": 0, "period_name": None}
+
+    rows = (
+        db.query(Evaluation)
+        .filter(
+            Evaluation.employee_id == _user["sub"],
+            Evaluation.period_id == active_period.id,
+            Evaluation.deleted_at.is_(None),
+        )
+        .order_by(Evaluation.created_at.desc())
+        .all()
+    )
+    sheets = [
+        {
+            "sheet_id": ev.id,
+            "period": ev.period_id,
+            "status": ev.status,
+            "final_score": ev.final_score,
+            "rank": ev.rank,
+            "spreadsheet_url": ev.spreadsheet_url,
+        }
+        for ev in rows
+    ]
+    return {"sheets": sheets, "total": len(sheets), "period_name": active_period.name}
+
+
 @router.get("")
 def list_sheets(
     period: str | None = None,
@@ -191,10 +227,22 @@ def list_sheets(
     db: Session = Depends(get_db),
     _user: dict = Depends(require_any_permission("view_all", "view_unit", "view_group")),
 ):
-    """CEO/HR/Unit Manager/Group Leader can list sheets."""
-    query = db.query(Evaluation, User.full_name, Template.name.label("template_name")).join(
+    """CEO/HR/Unit Manager/Group Leader can list sheets. Defaults to current active period."""
+    # If no period specified, use the current active period
+    if not period:
+        active_period = db.query(EvaluationPeriod).filter(
+            EvaluationPeriod.status == "active",
+            EvaluationPeriod.start_date <= date.today(),
+            EvaluationPeriod.end_date >= date.today(),
+        ).first()
+        if active_period:
+            period = active_period.id
+
+    query = db.query(Evaluation, User.full_name, Template.name.label("template_name"), Team.name.label("team_name")).join(
         User, Evaluation.employee_id == User.id
-    ).join(Template, Evaluation.template_id == Template.id).filter(Evaluation.deleted_at.is_(None))
+    ).join(Template, Evaluation.template_id == Template.id).outerjoin(
+        Team, User.team_id == Team.id
+    ).filter(Evaluation.deleted_at.is_(None))
     if period:
         query = query.filter(Evaluation.period_id == period)
     if status:
@@ -208,9 +256,10 @@ def list_sheets(
             "grade": ev.rank or "—",
             "period": ev.period_id,
             "status": ev.status,
+            "team": team_name or "—",
             "spreadsheet_url": ev.spreadsheet_url,
         }
-        for ev, full_name, template_name in rows
+        for ev, full_name, template_name, team_name in rows
     ]
     return {"sheets": sheets, "total": len(sheets)}
 
