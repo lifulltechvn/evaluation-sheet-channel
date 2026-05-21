@@ -28,27 +28,6 @@ def create_sheet(employee_id: str, name: str, email: str, position: str, grade: 
     return sheet
 
 
-def validate_sheet(sheet_id: str) -> dict | None:
-    """Validate a sheet and return validation result. Returns None if not found."""
-    sheet = sheet_repository.get_by_id(sheet_id)
-    if sheet is None:
-        return None
-
-    errors: list[dict] = []
-    warnings: list[dict] = []
-
-    if sheet["status"] == "created":
-        errors.append({"field": "self_evaluation", "error": "Self-evaluation not yet completed"})
-
-    warnings.append({"field": "leadership_comment", "warning": "[MOCK AI] Comment appears too vague — consider adding specifics"})
-
-    status = "fail" if errors else "pass"
-    if status == "pass":
-        sheet_repository.update_status(sheet_id, "validated")
-
-    return {"sheet_id": sheet_id, "status": status, "errors": errors, "warnings": warnings}
-
-
 def migrate_sheets(from_period: str, to_period: str, employee_updates: list[dict] | None = None) -> list[dict]:
     """Migrate sheets from one period to another with optional grade updates."""
     source_sheets = sheet_repository.get_by_period(from_period)
@@ -79,3 +58,24 @@ def migrate_sheets(from_period: str, to_period: str, employee_updates: list[dict
         })
 
     return migrated
+
+
+def validate_sheet(sheet_id: str) -> dict | None:
+    """Validate a sheet and return validation result. Returns None if not found."""
+    sheet = sheet_repository.get_by_id(sheet_id)
+    if sheet is None:
+        return None
+
+    errors: list[dict] = []
+    warnings: list[dict] = []
+
+    if sheet["status"] == "created":
+        errors.append({"field": "self_evaluation", "error": "Self-evaluation not yet completed"})
+
+    warnings.append({"field": "leadership_comment", "warning": "[MOCK AI] Comment appears too vague — consider adding specifics"})
+
+    status = "fail" if errors else "pass"
+    if status == "pass":
+        sheet_repository.update_status(sheet_id, "validated")
+
+    return {"sheet_id": sheet_id, "status": status, "errors": errors, "warnings": warnings}

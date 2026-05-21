@@ -35,5 +35,6 @@ def get_user_with_role(db: Session, user_id: str) -> dict | None:
         "email": u.email,
         "full_name": u.full_name,
         "role": role_name,
+        "team_id": u.team_id,
         "permissions": permissions,
     }

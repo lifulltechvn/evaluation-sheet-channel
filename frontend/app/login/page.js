@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { getValidToken } from "../utils/auth";
 import "./login.css";
 
 export default function LoginPage() {
@@ -9,6 +10,13 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    if (getValidToken()) {
+      router.replace("/");
+    }
+  }, [router]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
