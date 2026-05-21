@@ -12,10 +12,10 @@ async function api(path, opts = {}) {
 }
 
 const ALL_TABS = [
-  { id: "dashboard", label: "Dashboard", icon: "📊", requirePermission: "view_all" },
-  { id: "sheets", label: "Sheets", icon: "📄", requirePermission: "view_all" },
+  { id: "dashboard", label: "Dashboard", icon: "📊", requirePermission: ["view_all"] },
+  { id: "sheets", label: "Sheets", icon: "📄", requirePermission: ["view_all"] },
   { id: "self-assessment", label: "Self Assessment", icon: "✍️" },
-  { id: "employees", label: "Employees", icon: "👥", requirePermission: "view_all" },
+  { id: "employees", label: "Employees", icon: "👥", requirePermission: ["view_all" , "view_unit", "view_group"] },
   { id: "history", label: "History", icon: "📜" },
 ];
 
@@ -64,7 +64,7 @@ export default function Dashboard() {
   const TABS = useMemo(() => {
     return ALL_TABS.filter(t => {
       if (!t.requirePermission) return true;
-      return permissions[t.requirePermission] === true;
+      return t.requirePermission.some(p => permissions[p] === true);
     });
   }, [permissions]);
 
@@ -424,7 +424,12 @@ export default function Dashboard() {
                         <td><span className="position-tag">{e.role}</span></td>
                         <td>{e.team || "—"}</td>
                         <td><Badge status={e.status} /></td>
-                        <td><button className="btn btn-primary btn-sm" onClick={() => viewHistory(e.id)}>📜 History</button></td>
+                        <td>
+                          <div className="actions-bar">
+                            {e.spreadsheet_url && <a href={e.spreadsheet_url} target="_blank" rel="noreferrer" className="btn btn-success btn-sm">Open Sheet ↗</a>}
+                            <button className="btn btn-primary btn-sm" onClick={() => viewHistory(e.id)}>📜 History</button>
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

@@ -29,6 +29,7 @@ def create_access_token(user_data: dict) -> str:
         "sub": user_data["id"],
         "email": user_data["email"],
         "role": user_data["role"],
+        "team_id": user_data.get("team_id"),
         "permissions": user_data["permissions"],
         "exp": expire,
     }
