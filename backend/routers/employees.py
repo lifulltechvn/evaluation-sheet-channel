@@ -12,7 +12,14 @@ router = APIRouter(prefix="/v1/employees", tags=["employees"])
 
 @router.get("")
 def list_employees(db: Session = Depends(get_db), _user: dict = Depends(get_current_user)):
-    """List all employees."""
+    """List employees based on role permissions."""
+    perms = _user.get("permissions", {})
+    if perms.get("view_all"):
+        return employee_service.get_employees_from_db(db)
+    if perms.get("view_unit") and _user.get("team_id"):
+        return employee_service.get_employees_by_unit(db, _user["team_id"])
+    if perms.get("view_group") and _user.get("team_id"):
+        return employee_service.get_employees_by_team(db, _user["team_id"])
     return employee_service.get_employees_from_db(db)
 
 
