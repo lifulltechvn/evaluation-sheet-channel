@@ -261,16 +261,22 @@ def upgrade():
         INSERT INTO evaluations
             (id, employee_id, template_id, period_id, spreadsheet_id, spreadsheet_url, status, current_handler_id, final_score, rank)
         VALUES
-        ('EVAL_U35',  'U35',  '1','1','SHEET_U35_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U35_Q1', 'Self_Evaluating',   'U35',  NULL, NULL),
-        ('EVAL_U148', 'U148', '1','1','SHEET_U148_Q1','https://docs.google.com/spreadsheets/d/SHEET_U148_Q1','Leader_Reviewing',  'U74',  NULL, NULL),
-        ('EVAL_U191', 'U191', '1','1','SHEET_U191_Q1','https://docs.google.com/spreadsheets/d/SHEET_U191_Q1','Manager_Reviewing', 'U85',  NULL, NULL),
-        ('EVAL_U224', 'U224', '1','1','SHEET_U224_Q1','https://docs.google.com/spreadsheets/d/SHEET_U224_Q1','Completed',         'U85',  8.5,  'A'),
-        ('EVAL_U46',  'U46',  '1','1','SHEET_U46_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U46_Q1', 'Self_Evaluating',   'U46',  NULL, NULL),
-        ('EVAL_U96',  'U96',  '1','1','SHEET_U96_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U96_Q1', 'Completed',         'U85',  7.8,  'B'),
-        ('EVAL_U16',  'U16',  '1','1','SHEET_U16_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U16_Q1', 'Leader_Reviewing',  'U132', NULL, NULL),
-        ('EVAL_U23',  'U23',  '1','1','SHEET_U23_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U23_Q1', 'Completed',         'U85',  9.0,  'A'),
-        ('EVAL_U43',  'U43',  '1','1','SHEET_U43_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U43_Q1', 'Self_Evaluating',   'U43',  NULL, NULL),
-        ('EVAL_U116', 'U116', '2','1','SHEET_U116_Q1','https://docs.google.com/spreadsheets/d/SHEET_U116_Q1','Manager_Reviewing', 'U139', NULL, NULL)
+        ('EVAL_U35',  'U35',  '1','1','SHEET_U35_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U35_Q1', 'Self_Evaluating',   'U35',  NULL, 'G1'),
+        ('EVAL_U148', 'U148', '1','1','SHEET_U148_Q1','https://docs.google.com/spreadsheets/d/SHEET_U148_Q1','Leader_Reviewing',  'U74',  2.33, 'G1'),
+        ('EVAL_U191', 'U191', '1','1','SHEET_U191_Q1','https://docs.google.com/spreadsheets/d/SHEET_U191_Q1','Manager_Reviewing', 'U85',  2.75, 'G1'),
+        ('EVAL_U224', 'U224', '1','1','SHEET_U224_Q1','https://docs.google.com/spreadsheets/d/SHEET_U224_Q1','Completed',         'U85',  3.58, 'G1'),
+        ('EVAL_U46',  'U46',  '1','1','SHEET_U46_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U46_Q1', 'Self_Evaluating',   'U46',  NULL, 'G1'),
+        ('EVAL_U96',  'U96',  '1','1','SHEET_U96_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U96_Q1', 'Completed',         'U85',  3.25, 'G1'),
+        ('EVAL_U16',  'U16',  '1','1','SHEET_U16_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U16_Q1', 'Leader_Reviewing',  'U132', NULL, 'G1'),
+        ('EVAL_U23',  'U23',  '1','1','SHEET_U23_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U23_Q1', 'Completed',         'U85',  4.5,  'G1'),
+        ('EVAL_U43',  'U43',  '1','1','SHEET_U43_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U43_Q1', 'Self_Evaluating',   'U43',  NULL, 'G1'),
+        ('EVAL_U116', 'U116', '2','1','SHEET_U116_Q1','https://docs.google.com/spreadsheets/d/SHEET_U116_Q1','Manager_Reviewing', 'U139', 3.33, 'G1'),
+        ('EVAL_U85',  'U85',  '2','1','SHEET_U85_Q1', 'https://docs.google.com/spreadsheets/d/SHEET_U85_Q1', 'Completed',         'U106', 4.67, 'G1'),
+        ('EVAL_U187', 'U187', '2','1','SHEET_U187_Q1','https://docs.google.com/spreadsheets/d/SHEET_U187_Q1','Completed',         'U106', 3.42, 'G1'),
+        ('EVAL_U209', 'U209', '2','1','SHEET_U209_Q1','https://docs.google.com/spreadsheets/d/SHEET_U209_Q1','Manager_Reviewing', 'U85',  3.33, 'G1'),
+        ('EVAL_U207', 'U207', '2','1','SHEET_U207_Q1','https://docs.google.com/spreadsheets/d/SHEET_U207_Q1','Leader_Reviewing',  NULL,   2.33, 'G1'),
+        ('EVAL_U155', 'U155', '3','1','SHEET_U155_Q1','https://docs.google.com/spreadsheets/d/SHEET_U155_Q1','Completed',         'U158', 4.0,  'G1'),
+        ('EVAL_U143', 'U143', '3','1','SHEET_U143_Q1','https://docs.google.com/spreadsheets/d/SHEET_U143_Q1','Leader_Reviewing',  'U155', 3.0,  'G1')
     """)
 
     op.execute("""
