@@ -259,16 +259,31 @@ def upgrade():
 
     op.execute("""
         INSERT INTO evaluations (id, employee_id, template_id, period_id, spreadsheet_id, spreadsheet_url, status, current_handler_id, final_score, rank, created_at, updated_at, deleted_at) VALUES
-        ('EVAL_U106_1','U106','2','1','12Vekyd13FlTFmrZAekreC0QzPZ-Ray7rNryzoFPUB9I','https://docs.google.com/spreadsheets/d/12Vekyd13FlTFmrZAekreC0QzPZ-Ray7rNryzoFPUB9I','Self_Evaluating','U106',NULL,NULL,'2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
-        ('EVAL_U85_1','U85','2','1','1s1bEspNxS_jK0hOOZg5VNSiqWB1y5fztIZKOYbOXNSk','https://docs.google.com/spreadsheets/d/1s1bEspNxS_jK0hOOZg5VNSiqWB1y5fztIZKOYbOXNSk','Self_Evaluating','U85',NULL,NULL,'2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
-        ('EVAL_U74_1','U74','1','1','1KQIJUGQjmIvvyXJLLnp0ThOmRvHT6_IOCuFBDdbaIRs','https://docs.google.com/spreadsheets/d/1KQIJUGQjmIvvyXJLLnp0ThOmRvHT6_IOCuFBDdbaIRs','Self_Evaluating','U74',NULL,NULL,'2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL)
+        ('EVAL_U106','U106','2','1','12Vekyd13FlTFmrZAekreC0QzPZ-Ray7rNryzoFPUB9I','https://docs.google.com/spreadsheets/d/12Vekyd13FlTFmrZAekreC0QzPZ-Ray7rNryzoFPUB9I','Self_Evaluating','U106',NULL,NULL,'2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U85','U85','2','1','1s1bEspNxS_jK0hOOZg5VNSiqWB1y5fztIZKOYbOXNSk','https://docs.google.com/spreadsheets/d/1s1bEspNxS_jK0hOOZg5VNSiqWB1y5fztIZKOYbOXNSk','Self_Evaluating','U85',4.67,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U74','U74','1','1','1KQIJUGQjmIvvyXJLLnp0ThOmRvHT6_IOCuFBDdbaIRs','https://docs.google.com/spreadsheets/d/1KQIJUGQjmIvvyXJLLnp0ThOmRvHT6_IOCuFBDdbaIRs','Self_Evaluating','U74',NULL,NULL,'2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U35','U35','1','1','SHEET_U35_Q1','https://docs.google.com/spreadsheets/d/SHEET_U35_Q1','Self_Evaluating','U35',NULL,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U148','U148','1','1','SHEET_U148_Q1','https://docs.google.com/spreadsheets/d/SHEET_U148_Q1','Leader_Reviewing','U74',2.33,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U191','U191','1','1','SHEET_U191_Q1','https://docs.google.com/spreadsheets/d/SHEET_U191_Q1','Manager_Reviewing','U85',2.75,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U224','U224','1','1','SHEET_U224_Q1','https://docs.google.com/spreadsheets/d/SHEET_U224_Q1','Completed','U85',3.58,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U46','U46','1','1','SHEET_U46_Q1','https://docs.google.com/spreadsheets/d/SHEET_U46_Q1','Self_Evaluating','U46',NULL,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U96','U96','1','1','SHEET_U96_Q1','https://docs.google.com/spreadsheets/d/SHEET_U96_Q1','Completed','U85',3.25,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U16','U16','1','1','SHEET_U16_Q1','https://docs.google.com/spreadsheets/d/SHEET_U16_Q1','Leader_Reviewing','U132',NULL,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U23','U23','1','1','SHEET_U23_Q1','https://docs.google.com/spreadsheets/d/SHEET_U23_Q1','Completed','U85',4.5,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U43','U43','1','1','SHEET_U43_Q1','https://docs.google.com/spreadsheets/d/SHEET_U43_Q1','Self_Evaluating','U43',NULL,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U116','U116','2','1','SHEET_U116_Q1','https://docs.google.com/spreadsheets/d/SHEET_U116_Q1','Manager_Reviewing','U139',3.33,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U187','U187','2','1','SHEET_U187_Q1','https://docs.google.com/spreadsheets/d/SHEET_U187_Q1','Completed','U106',3.42,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U209','U209','2','1','SHEET_U209_Q1','https://docs.google.com/spreadsheets/d/SHEET_U209_Q1','Manager_Reviewing','U85',3.33,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U207','U207','2','1','SHEET_U207_Q1','https://docs.google.com/spreadsheets/d/SHEET_U207_Q1','Leader_Reviewing',NULL,2.33,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U155','U155','3','1','SHEET_U155_Q1','https://docs.google.com/spreadsheets/d/SHEET_U155_Q1','Completed','U158',4.0,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL),
+        ('EVAL_U143','U143','3','1','SHEET_U143_Q1','https://docs.google.com/spreadsheets/d/SHEET_U143_Q1','Leader_Reviewing','U155',3.0,'G1','2026-05-15 06:18:18.501','2026-05-15 06:18:18.501',NULL)
     """)
 
     op.execute("""
         INSERT INTO audit_logs (actor_id, action, target_type, target_id, details) VALUES
-        ('U74',  'VIEW_FILE',          'EVALUATION', 'EVAL_U74_1',  '{"ip": "192.168.1.100", "user_agent": "Chrome/120"}'),
-        ('U74',  'UPDATE_STATUS',      'EVALUATION', 'EVAL_U74_1',  '{"old_status": "Self_Evaluating", "new_status": "Leader_Reviewing"}'),
-        ('U85',  'APPROVE_EVALUATION', 'EVALUATION', 'EVAL_U85_1',  '{"final_score": 8.5, "rank": "A"}'),
+        ('U74',  'VIEW_FILE',          'EVALUATION', 'EVAL_U74',  '{"ip": "192.168.1.100", "user_agent": "Chrome/120"}'),
+        ('U74',  'UPDATE_STATUS',      'EVALUATION', 'EVAL_U74',  '{"old_status": "Self_Evaluating", "new_status": "Leader_Reviewing"}'),
+        ('U85',  'APPROVE_EVALUATION', 'EVALUATION', 'EVAL_U85',  '{"final_score": 8.5, "rank": "A"}'),
         ('U106', 'EXPORT_REPORT',      'EVALUATION', NULL,          '{"period": "1", "format": "PDF"}')
     """)
 
