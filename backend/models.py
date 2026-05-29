@@ -118,3 +118,14 @@ class AuditLog(Base):
         Index("idx_audit_actor_time", "actor_id", "created_at"),
         Index("idx_audit_action", "action"),
     )
+
+
+class EvaluationSummary(Base):
+    __tablename__ = "evaluation_summaries"
+    id            = Column(String(36), primary_key=True, server_default="gen_random_uuid()::text")
+    evaluation_id = Column(String(36), ForeignKey("evaluations.id", ondelete="CASCADE"), nullable=False, unique=True)
+    employee_id   = Column(String(36), ForeignKey("users.id"), nullable=False)
+    period_id     = Column(String(36), ForeignKey("evaluation_periods.id"), nullable=False)
+    skills_score  = Column(JSONB, nullable=False)
+    total_average = Column(Float, nullable=True)
+    created_at    = Column(DateTime, server_default=func.now())

@@ -11,6 +11,11 @@ from models import User, Template, EvaluationPeriod, Evaluation, Team
 from schemas.requests import BatchSendRequest, MigrateRequest
 from services import sheet_service
 from services.google_drive_service import copy_template_to_folder, list_files_in_folder, get_or_create_folder
+from fastapi import APIRouter, HTTPException, Depends
+
+from dependencies import get_current_user
+from schemas.requests import GenerateRequest, BatchSendRequest, MigrateRequest
+from services import sheet_service, ai_service
 from repositories import sheet_repository
 from datetime import date
 
@@ -326,3 +331,77 @@ def migrate_sheets(req: MigrateRequest, _user: dict = Depends(require_permission
         employee_updates=req.employee_updates,
     )
     return {"status": "success", "migrated": len(migrated), "sheets": migrated}
+
+
+@router.post("/{sheet_id}/feedback")
+def generate_feedback(sheet_id: str, db: Session = Depends(get_db), _user: dict = Depends(get_current_user)):
+    """Generate AI feedback and recommendations by reading data directly from Google Sheet."""
+    from models import EvaluationSummary
+    from services.google_drive_service import read_evaluation_sheet
+
+    # Query evaluation from DB
+    eval_row = db.query(Evaluation, User.full_name, Template.name.label("position")).join(
+        User, Evaluation.employee_id == User.id
+    ).join(Template, Evaluation.template_id == Template.id).filter(
+        Evaluation.id == sheet_id, Evaluation.deleted_at.is_(None)
+    ).first()
+    if not eval_row:
+        raise HTTPException(404, "Sheet not found")
+
+    ev, full_name, position = eval_row
+
+    # Read actual data from Google Sheet
+    try:
+        sheet_data = read_evaluation_sheet(ev.spreadsheet_id)
+        sheet_read_success = True
+    except Exception:
+        sheet_data = None
+        sheet_read_success = False
+
+    # Build scoring from sheet data or fallback to DB summary
+    if sheet_read_success:
+        # Sheet connected successfully — use real data only
+        scoring = {}
+        for skill in (sheet_data or {}).get("technical_skills", []):
+            if skill["self_score"] is not None:
+                scoring[skill["skill"]] = skill["self_score"]
+        comments = [s["self_comment"] for s in (sheet_data or {}).get("technical_skills", []) if s["self_comment"]]
+        level = (sheet_data or {}).get("level") or ev.rank or "G0"
+        historical_scores = (sheet_data or {}).get("historical_scores", {})
+
+        if not scoring and not comments:
+            return {"sheet_id": sheet_id, "feedback": "Sheet chưa có dữ liệu tự đánh giá. Nhân viên cần điền điểm và comment trước khi AI có thể đưa ra feedback.", "recommend": ""}
+    else:
+        summary = db.query(EvaluationSummary).filter(EvaluationSummary.evaluation_id == sheet_id).first()
+        scoring = summary.skills_score if summary else {}
+        comments = []
+        level = ev.rank or "G0"
+        historical_scores = {}
+
+    sheet = {
+        "employee_name": full_name,
+        "position": position.lower().replace(" ", "_"),
+        "grade": level,
+        "period": ev.period_id,
+        "scoring_criteria": scoring,
+        "comments": comments,
+        "historical_scores": historical_scores,
+    }
+
+    # Find previous evaluation for comparison
+    prev_eval = db.query(Evaluation).filter(
+        Evaluation.employee_id == ev.employee_id,
+        Evaluation.id != sheet_id,
+        Evaluation.deleted_at.is_(None),
+    ).order_by(Evaluation.created_at.desc()).first()
+
+    previous_sheet = None
+    if prev_eval:
+        prev_summary = db.query(EvaluationSummary).filter(EvaluationSummary.evaluation_id == prev_eval.id).first()
+        previous_sheet = {
+            "period": prev_eval.period_id,
+            "scoring_criteria": prev_summary.skills_score if prev_summary else {},
+        }
+
+    result = ai_service.generate_feedback_and_recommend(sheet, previous_sheet)
+    return {"sheet_id": sheet_id, **result}
