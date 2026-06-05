@@ -6,13 +6,36 @@ from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from google.oauth2.service_account import Credentials
 
-SCOPES = ["https://www.googleapis.com/auth/drive"]
+SCOPES = ["https://www.googleapis.com/auth/drive", "https://www.googleapis.com/auth/spreadsheets"]
 SERVICE_ACCOUNT_FILE = os.environ.get("GOOGLE_SERVICE_ACCOUNT_FILE", "/app/credentials.json")
 
 
 def _get_drive_service():
     creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
     return build("drive", "v3", credentials=creds)
+
+
+def _get_sheets_service():
+    creds = Credentials.from_service_account_file(SERVICE_ACCOUNT_FILE, scopes=SCOPES)
+    return build("sheets", "v4", credentials=creds)
+
+
+def fill_employee_info(spreadsheet_id: str, full_name: str, current_rank: str, division_unit: str, group_name: str, position: str):
+    """Fill employee info into the 'G Level' sheet after copying template."""
+    service = _get_sheets_service()
+    # Remove trailing " Group" from group name (e.g. "Channel Group" → "Channel")
+    clean_group = group_name.replace(" Group", "") if group_name else ""
+    data = [
+        {"range": "'G Level'!A8", "values": [[full_name]]},
+        {"range": "'G Level'!B11:E11", "values": [[current_rank or "", current_rank or "", current_rank or "", current_rank or ""]]},
+        {"range": "'G Level'!B12:E12", "values": [[division_unit or "", division_unit or "", division_unit or "", division_unit or ""]]},
+        {"range": "'G Level'!B13:E13", "values": [[clean_group, clean_group, clean_group, clean_group]]},
+        {"range": "'G Level'!B15:E15", "values": [[position or "", position or "", position or "", position or ""]]},
+    ]
+    _retry(lambda: service.spreadsheets().values().batchUpdate(
+        spreadsheetId=spreadsheet_id,
+        body={"valueInputOption": "RAW", "data": data},
+    ).execute())
 
 
 def _retry(fn, max_retries=5):

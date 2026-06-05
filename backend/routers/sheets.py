@@ -7,10 +7,10 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from dependencies import get_current_user, require_permissions, require_any_permission
-from models import User, Template, EvaluationPeriod, Evaluation, Team
+from models import User, Template, EvaluationPeriod, Evaluation, Team, Role
 from schemas.requests import BatchSendRequest, MigrateRequest
 from services import sheet_service
-from services.google_drive_service import copy_template_to_folder, list_files_in_folder, get_or_create_folder
+from services.google_drive_service import copy_template_to_folder, list_files_in_folder, get_or_create_folder, fill_employee_info
 from repositories import sheet_repository
 from datetime import date
 
@@ -26,7 +26,7 @@ def generate_sheets(period_id: str, db: Session = Depends(get_db), _user: dict =
     """
     Generate evaluation sheets for ALL employees who have a template_id.
     Copies the template spreadsheet into the period's Drive folder.
-    File name format: 【】Full_name Evaluation Sheet period_name
+    File name format: 【period_name】 Full_name_Evaluation Sheet 
     """
     period = db.query(EvaluationPeriod).filter(EvaluationPeriod.id == period_id).first()
     if not period:
@@ -39,6 +39,7 @@ def generate_sheets(period_id: str, db: Session = Depends(get_db), _user: dict =
     # Preload templates
     templates = {t.id: t for t in db.query(Template).all()}
     teams = {t.id: t for t in db.query(Team).all()}
+    roles = {r.id: r for r in db.query(Role).all()}
     folder_cache = {}
 
     def get_team_folder(team_id: str) -> str:
@@ -55,29 +56,89 @@ def generate_sheets(period_id: str, db: Session = Depends(get_db), _user: dict =
         folder_cache[team_id] = folder_id
         return folder_id
 
+    def _resolve_employee_info(user):
+        team = teams.get(user.team_id) if user.team_id else None
+        parent_team = teams.get(team.parent_id) if team and team.parent_id else None
+        division_unit = parent_team.name if parent_team else (team.name if team else "")
+        group_name = team.name if team and team.parent_id else ""
+        role = roles.get(user.role_id)
+        position = role.name if role else ""
+        return division_unit, group_name, position
+
+    # Preload existing files in period folder (recursive via team folders)
+    drive_files_cache = {}
+
+    def get_folder_files(folder_id: str) -> dict:
+        if folder_id not in drive_files_cache:
+            drive_files_cache[folder_id] = list_files_in_folder(folder_id)
+        return drive_files_cache[folder_id]
+
     created = []
     for user in users:
-        # Skip if evaluation already exists for this user+period
+        template = templates.get(user.template_id)
+        if not template:
+            continue
+
+        file_name = f"【{period.name}】{user.full_name}_Evaluation Sheet "
+        target_folder = get_team_folder(user.team_id) if user.team_id else period.folder_id
+
+        # Check if evaluation already exists in DB for this user+period
         existing = db.query(Evaluation).filter(
             Evaluation.employee_id == user.id,
             Evaluation.period_id == period_id,
             Evaluation.deleted_at.is_(None),
         ).first()
         if existing:
+            # DB has record — check if file still exists on Drive
+            folder_files = get_folder_files(target_folder)
+            if file_name not in folder_files:
+                # File missing on Drive — recreate and update record
+                result = copy_template_to_folder(
+                    template_file_id=template.google_file_id,
+                    folder_id=target_folder,
+                    file_name=file_name,
+                )
+                division_unit, group_name, position = _resolve_employee_info(user)
+                fill_employee_info(result["spreadsheet_id"], user.full_name, user.current_rank, division_unit, group_name, position)
+                existing.spreadsheet_id = result["spreadsheet_id"]
+                existing.spreadsheet_url = result["spreadsheet_url"]
+                created.append({
+                    "employee_id": user.id,
+                    "full_name": user.full_name,
+                    "spreadsheet_url": result["spreadsheet_url"],
+                })
             continue
 
-        template = templates.get(user.template_id)
-        if not template:
+        # Check if spreadsheet already exists in Google Drive folder
+        folder_files = get_folder_files(target_folder)
+        if file_name in folder_files:
+            # File exists on Drive but no DB record — create evaluation record to sync
+            existing_file_id = folder_files[file_name]
+            evaluation = Evaluation(
+                id=f"EVAL_{user.id}_{period_id}",
+                employee_id=user.id,
+                template_id=user.template_id,
+                period_id=period_id,
+                spreadsheet_id=existing_file_id,
+                spreadsheet_url=f"https://docs.google.com/spreadsheets/d/{existing_file_id}/edit",
+                status="Self_Evaluating",
+                current_handler_id=user.id,
+            )
+            db.add(evaluation)
+            created.append({
+                "employee_id": user.id,
+                "full_name": user.full_name,
+                "spreadsheet_url": evaluation.spreadsheet_url,
+            })
             continue
-
-        file_name = f"【】{user.full_name} Evaluation Sheet {period.name}"
-        target_folder = get_team_folder(user.team_id) if user.team_id else period.folder_id
 
         result = copy_template_to_folder(
             template_file_id=template.google_file_id,
             folder_id=target_folder,
             file_name=file_name,
         )
+        division_unit, group_name, position = _resolve_employee_info(user)
+        fill_employee_info(result["spreadsheet_id"], user.full_name, user.current_rank, division_unit, group_name, position)
 
         evaluation = Evaluation(
             id=f"EVAL_{user.id}_{period_id}",
@@ -113,7 +174,17 @@ def generate_sheets_stream(period_id: str, db: Session = Depends(get_db), _user:
 
     templates = {t.id: t for t in db.query(Template).all()}
     teams = {t.id: t for t in db.query(Team).all()}
+    roles = {r.id: r for r in db.query(Role).all()}
     total = len(users)
+
+    def _resolve_employee_info(user):
+        team = teams.get(user.team_id) if user.team_id else None
+        parent_team = teams.get(team.parent_id) if team and team.parent_id else None
+        division_unit = parent_team.name if parent_team else (team.name if team else "")
+        group_name = team.name if team and team.parent_id else ""
+        role = roles.get(user.role_id)
+        position = role.name if role else ""
+        return division_unit, group_name, position
 
     def event_stream():
         # Cache for resolved folder IDs: team_id -> folder_id
@@ -136,6 +207,14 @@ def generate_sheets_stream(period_id: str, db: Session = Depends(get_db), _user:
             folder_cache[team_id] = folder_id
             return folder_id
 
+        # Cache for Drive folder file listings
+        drive_files_cache = {}
+
+        def get_folder_files(folder_id: str) -> dict:
+            if folder_id not in drive_files_cache:
+                drive_files_cache[folder_id] = list_files_in_folder(folder_id)
+            return drive_files_cache[folder_id]
+
         yield f"data: {json.dumps({'type': 'start', 'total': total})}\n\n"
         created = 0
         skipped = 0
@@ -144,7 +223,10 @@ def generate_sheets_stream(period_id: str, db: Session = Depends(get_db), _user:
             if not template:
                 continue
 
-            file_name = f"【】{user.full_name} Evaluation Sheet {period.name}"
+            file_name = f"【{period.name}】{user.full_name}_Evaluation Sheet "
+
+            # Resolve target folder based on user's team
+            target_folder = get_team_folder(user.team_id) if user.team_id else period.folder_id
 
             # Check DB
             existing_eval = db.query(Evaluation).filter(
@@ -153,12 +235,45 @@ def generate_sheets_stream(period_id: str, db: Session = Depends(get_db), _user:
                 Evaluation.deleted_at.is_(None),
             ).first()
             if existing_eval:
-                skipped += 1
-                yield f"data: {json.dumps({'type': 'skipped', 'current': i, 'total': total, 'name': user.full_name, 'reason': 'db_exists'})}\n\n"
+                # DB has record — check if file still exists on Drive
+                folder_files = get_folder_files(target_folder)
+                if file_name not in folder_files:
+                    # File missing on Drive — recreate and update record
+                    result = copy_template_to_folder(
+                        template_file_id=template.google_file_id,
+                        folder_id=target_folder,
+                        file_name=file_name,
+                    )
+                    division_unit, group_name, position = _resolve_employee_info(user)
+                    fill_employee_info(result["spreadsheet_id"], user.full_name, user.current_rank, division_unit, group_name, position)
+                    existing_eval.spreadsheet_id = result["spreadsheet_id"]
+                    existing_eval.spreadsheet_url = result["spreadsheet_url"]
+                    created += 1
+                    yield f"data: {json.dumps({'type': 'progress', 'current': i, 'total': total, 'name': user.full_name, 'note': 'recreated_on_drive'})}\n\n"
+                else:
+                    skipped += 1
+                    yield f"data: {json.dumps({'type': 'skipped', 'current': i, 'total': total, 'name': user.full_name, 'reason': 'db_exists'})}\n\n"
                 continue
 
-            # Resolve target folder based on user's team
-            target_folder = get_team_folder(user.team_id) if user.team_id else period.folder_id
+            # Check if spreadsheet already exists in Google Drive folder
+            folder_files = get_folder_files(target_folder)
+            if file_name in folder_files:
+                # File exists on Drive but no DB record — create evaluation record to sync
+                existing_file_id = folder_files[file_name]
+                evaluation = Evaluation(
+                    id=f"EVAL_{user.id}_{period_id}",
+                    employee_id=user.id,
+                    template_id=user.template_id,
+                    period_id=period_id,
+                    spreadsheet_id=existing_file_id,
+                    spreadsheet_url=f"https://docs.google.com/spreadsheets/d/{existing_file_id}/edit",
+                    status="Self_Evaluating",
+                    current_handler_id=user.id,
+                )
+                db.add(evaluation)
+                created += 1
+                yield f"data: {json.dumps({'type': 'progress', 'current': i, 'total': total, 'name': user.full_name, 'note': 'synced_from_drive'})}\n\n"
+                continue
 
             # Copy template to team folder
             result = copy_template_to_folder(
@@ -166,6 +281,8 @@ def generate_sheets_stream(period_id: str, db: Session = Depends(get_db), _user:
                 folder_id=target_folder,
                 file_name=file_name,
             )
+            division_unit, group_name, position = _resolve_employee_info(user)
+            fill_employee_info(result["spreadsheet_id"], user.full_name, user.current_rank, division_unit, group_name, position)
             evaluation = Evaluation(
                 id=f"EVAL_{user.id}_{period_id}",
                 employee_id=user.id,
