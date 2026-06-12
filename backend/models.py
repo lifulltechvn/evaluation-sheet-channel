@@ -1,5 +1,5 @@
 from sqlalchemy import (
-    Column, String, Text, Float, Date, Boolean, ForeignKey, Index, CheckConstraint
+    Column, String, Text, Float, Date, Boolean, SmallInteger, ForeignKey, Index, CheckConstraint
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import DeclarativeBase
@@ -76,6 +76,18 @@ class Evaluation(Base):
     spreadsheet_url    = Column(Text, nullable=False)
     status             = Column(String(30), server_default="Self_Evaluating")
     current_handler_id = Column(String(36), ForeignKey("users.id"), nullable=True)
+    phase              = Column(SmallInteger, server_default="1", nullable=False)
+    # Điểm lần 1
+    h1_score           = Column(Float, nullable=True)
+    h1_rank            = Column(String(10), nullable=True)
+    h1_approved_by     = Column(String(36), ForeignKey("users.id"), nullable=True)
+    h1_approved_at     = Column(DateTime, nullable=True)
+    # Điểm lần 2
+    h2_score           = Column(Float, nullable=True)
+    h2_rank            = Column(String(10), nullable=True)
+    h2_approved_by     = Column(String(36), ForeignKey("users.id"), nullable=True)
+    h2_approved_at     = Column(DateTime, nullable=True)
+    # Tổng hợp cả năm
     final_score        = Column(Float, nullable=True)
     rank               = Column(String(10), nullable=True)
     created_at         = Column(DateTime, server_default=func.now())
@@ -86,6 +98,23 @@ class Evaluation(Base):
             "status IN ('Self_Evaluating','Leader_Reviewing','Manager_Reviewing','Completed')",
             name="ck_eval_status"
         ),
+        CheckConstraint("phase IN (1, 2)", name="ck_eval_phase"),
+    )
+
+
+class EvaluationSummary(Base):
+    __tablename__ = "evaluation_summaries"
+    id            = Column(String(36), primary_key=True, server_default="gen_random_uuid()::text")
+    evaluation_id = Column(String(36), ForeignKey("evaluations.id", ondelete="CASCADE"), nullable=False)
+    employee_id   = Column(String(36), ForeignKey("users.id"), nullable=False)
+    period_id     = Column(String(36), ForeignKey("evaluation_periods.id"), nullable=False)
+    phase         = Column(SmallInteger, server_default="1", nullable=False)
+    skills_score  = Column(JSONB, nullable=False)
+    total_average = Column(Float, nullable=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+    __table_args__ = (
+        CheckConstraint("phase IN (1, 2)", name="ck_summary_phase"),
+        Index("uq_eval_summary_eval_phase", "evaluation_id", "phase", unique=True),
     )
 
 
